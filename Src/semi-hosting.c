@@ -2,7 +2,9 @@
  * semi-hosting.c
  *
  * Unable to use the ITM component of the ARM Cortex M4 processor for printf(),
- * without the use of USART/UART for the STM32F429 board
+ * without the use of USART/UART, for the STM32F429 board
+ * see:
+ * https://web.archive.org/web/20220222101721/https://electronics.stackexchange.com/questions/421204/stm32f429i-discovery-board-unable-to-do-printf-redirection-using-swv-itm
  *
  * Setting up semi-hosting
  * - Use ST-LINK(OpenOCD) debug probe
