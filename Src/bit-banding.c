@@ -31,16 +31,16 @@ int main(void)
 
     uint32_t *ptr = (uint32_t *) ADDR;
     *ptr = 0xFF;
-    printf("Value at address (before change): %lx\n", *ptr);
+    printf("Value at address (before change): %lX\n", *ptr);
     *ptr = 0xFF; /*I have to rewrite, since printf clears the contents of the address*/
 
     /*
      * Using bit-band aliasing
      *  - uses less assembly instructions as opposed to using *ptr &= ~(1 << 7)
      */
-    uint32_t *alias_address = (uint32_t *) ALIAS_BASE;
+    uint32_t *alias_address = (uint32_t *) ALIAS_ADDR();
     *alias_address = 0;
-    printf("Value at address (after change): %lx\n", *ptr);
+    printf("Value at address (after change): %lX\n", *ptr);
 
     while(1);
 }
