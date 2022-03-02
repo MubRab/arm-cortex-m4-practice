@@ -33,7 +33,7 @@ void task1_handler(void)
     while(1)
     {
         printf("Task1 before block\n");
-        task_delay(100);
+        task_delay(10);
         printf("Task1 after block\n");
     }
 }
@@ -43,7 +43,7 @@ void task2_handler(void)
     while(1)
     {
         printf("Task2 before block\n");
-        task_delay(150);
+        task_delay(15);
         printf("Task2 after block\n");
     }
 }
@@ -53,7 +53,7 @@ void task3_handler(void)
     while(1)
     {
         printf("Task3 before block\n");
-        task_delay(10);
+        task_delay(1);
         printf("Task3 after block\n");
     }
 }
@@ -63,7 +63,7 @@ void task4_handler(void)
     while(1)
     {
         printf("Task4 before block\n");
-        task_delay(50);
+        task_delay(5);
         printf("Task4 after block\n");
     }
 }
@@ -264,6 +264,8 @@ void UsageFault_Handler(void)
 
 void update_task(void)
 {
+    INTERRUPT_DISABLE();
+
     uint32_t blocked_task_count = 0;
 
     do
@@ -290,6 +292,8 @@ void update_task(void)
     {
         task_current = 0;
     }
+
+    INTERRUPT_ENABLE();
 }
 
 void save_psp(uint32_t psp_val)
