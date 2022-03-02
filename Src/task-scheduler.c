@@ -7,16 +7,11 @@
  *      Author:
  */
 
-#include <stdint.h>
 #include <stdio.h>
 #include "task-scheduler.h"
 
 extern void initialise_monitor_handles(void);
 
-uint32_t task_psp[NUM_TASKS] = {(uint32_t) TASK1_STACK_BASE, (uint32_t) TASK2_STACK_BASE,
-        (uint32_t) TASK3_STACK_BASE, (uint32_t) TASK4_STACK_BASE};
-uint32_t task_handlers[NUM_TASKS] = {(uint32_t) task1_handler, (uint32_t) task2_handler,
-        (uint32_t) task3_handler, (uint32_t) task4_handler};
 uint8_t task_current = 0;
 
 int main (void)
@@ -24,7 +19,7 @@ int main (void)
     initialise_monitor_handles();
     enable_sys_faults();
     init_stack_scheduler((uint32_t) SCHEDULER_STACK_BASE);
-    init_stack_tasks();
+    init_tasks();
     init_systick(DESIRED_FREQ_HZ);
     init_sp();
     task1_handler();
@@ -100,19 +95,45 @@ __attribute__ ((naked)) void init_stack_scheduler(uint32_t stack_address)
     __asm volatile("BX LR");
 }
 
-void init_stack_tasks(void)
+void init_tasks(void)
 {
+    for (int i = 0; i < NUM_TASKS; ++i)
+    {
+        tasks[i].current_state = TASK_STATE_RUNNING;
+
+        switch(i)
+        {
+            case 0:
+                tasks[0].psp_value = TASK1_STACK_BASE;
+                tasks[0].task_handler = task1_handler;
+                break;
+            case 1:
+                tasks[1].psp_value = TASK2_STACK_BASE;
+                tasks[1].task_handler = task2_handler;
+                break;
+            case 2:
+                tasks[2].psp_value = TASK3_STACK_BASE;
+                tasks[2].task_handler = task3_handler;
+                break;
+            case 3:
+                tasks[3].psp_value = TASK4_STACK_BASE;
+                tasks[3].task_handler = task4_handler;
+                break;
+        }
+    }
+
+
     uint32_t *pPSP;
 
     for (int i = 0; i < NUM_TASKS; ++i)
     {
-        pPSP = (uint32_t *) task_psp[i];
+        pPSP = (uint32_t *) tasks[i].psp_value;
 
         --pPSP;
         *pPSP = XPSR_INIT;
 
         --pPSP;
-        *pPSP = task_handlers[i];
+        *pPSP = (uint32_t) tasks[i].task_handler;
 
         --pPSP;
         *pPSP = LR_INIT;
@@ -123,7 +144,7 @@ void init_stack_tasks(void)
             --pPSP;
             *pPSP = 0;
         }
-        task_psp[i] = (uint32_t) pPSP;
+        tasks[i].psp_value = (uint32_t) pPSP;
     }
 }
 
@@ -133,7 +154,7 @@ __attribute__ ((naked)) void init_sp(void)
 //    __asm volatile("BL get_psp");
 //    __asm volatile("MSR PSP, R0");
 //    __asm volatile("POP {LR}");    /*Restore LR value from stack before branching*/
-    __asm volatile("MSR PSP, %0": : "r" (task_psp[task_current]) : );
+    __asm volatile("MSR PSP, %0": : "r" (tasks[task_current].psp_value) : );
     __asm volatile("MOV R0, #0x02");
     __asm volatile("MSR CONTROL, R0");
     __asm volatile("BX LR");
@@ -168,7 +189,7 @@ __attribute__ ((naked)) void SysTick_Handler(void)
     __asm volatile("PUSH {LR}");    /*Preserve LR value in stack before branching*/
     __asm volatile("BL update_task");
     __asm volatile("POP {LR}");    /*Restore LR value from stack before branching*/
-    __asm volatile("MOV R0, %0": : "r" (task_psp[task_current]) : );
+    __asm volatile("MOV R0, %0": : "r" (tasks[task_current].psp_value) : );
     __asm volatile("LDMIA R0!, {R4-R11}");
     __asm volatile("MSR PSP, R0");
 
@@ -216,7 +237,7 @@ void update_task(void)
 
 void save_psp(uint32_t psp_val)
 {
-    task_psp[task_current] = psp_val;
+    tasks[task_current].psp_value = psp_val;
 }
 
 void exception_type(void)
