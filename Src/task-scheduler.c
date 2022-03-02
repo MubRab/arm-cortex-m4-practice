@@ -12,7 +12,8 @@
 
 extern void initialise_monitor_handles(void);
 
-uint8_t task_current = 0;
+static uint8_t task_current = 1;
+static uint32_t global_tick_count = 0;
 
 int main (void)
 {
@@ -31,7 +32,9 @@ void task1_handler(void)
 {
     while(1)
     {
-        printf("Task1\n");
+        printf("Task1 before block\n");
+        task_delay(100);
+        printf("Task1 after block\n");
     }
 }
 
@@ -39,7 +42,9 @@ void task2_handler(void)
 {
     while(1)
     {
-        printf("Task2\n");
+        printf("Task2 before block\n");
+        task_delay(150);
+        printf("Task2 after block\n");
     }
 }
 
@@ -47,7 +52,9 @@ void task3_handler(void)
 {
     while(1)
     {
-        printf("Task3\n");
+        printf("Task3 before block\n");
+        task_delay(10);
+        printf("Task3 after block\n");
     }
 }
 
@@ -55,7 +62,17 @@ void task4_handler(void)
 {
     while(1)
     {
-        printf("Task4\n");
+        printf("Task4 before block\n");
+        task_delay(50);
+        printf("Task4 after block\n");
+    }
+}
+
+void idle_task_handler(void)
+{
+    while(1)
+    {
+        printf("Idle Task\n");
     }
 }
 
@@ -99,25 +116,29 @@ void init_tasks(void)
 {
     for (int i = 0; i < NUM_TASKS; ++i)
     {
-        tasks[i].current_state = TASK_STATE_RUNNING;
+        tasks[i].current_state = TASK_STATE_READY;
 
         switch(i)
         {
             case 0:
-                tasks[0].psp_value = TASK1_STACK_BASE;
-                tasks[0].task_handler = task1_handler;
+                tasks[i].psp_value = TASK_IDLE_STACK_BASE;
+                tasks[i].task_handler = idle_task_handler;
                 break;
             case 1:
-                tasks[1].psp_value = TASK2_STACK_BASE;
-                tasks[1].task_handler = task2_handler;
+                tasks[i].psp_value = TASK1_STACK_BASE;
+                tasks[i].task_handler = task1_handler;
                 break;
             case 2:
-                tasks[2].psp_value = TASK3_STACK_BASE;
-                tasks[2].task_handler = task3_handler;
+                tasks[i].psp_value = TASK2_STACK_BASE;
+                tasks[i].task_handler = task2_handler;
                 break;
             case 3:
-                tasks[3].psp_value = TASK4_STACK_BASE;
-                tasks[3].task_handler = task4_handler;
+                tasks[i].psp_value = TASK3_STACK_BASE;
+                tasks[i].task_handler = task3_handler;
+                break;
+            case 4:
+                tasks[i].psp_value = TASK4_STACK_BASE;
+                tasks[i].task_handler = task4_handler;
                 break;
         }
     }
@@ -164,7 +185,7 @@ __attribute__ ((naked)) void init_sp(void)
  * Handler Functions
  */
 
-__attribute__ ((naked)) void SysTick_Handler(void)
+__attribute__ ((naked)) void PendSV_Handler(void)
 {
     /**
      * Saving current task's context
@@ -194,12 +215,23 @@ __attribute__ ((naked)) void SysTick_Handler(void)
     __asm volatile("MSR PSP, R0");
 
     __asm volatile("BX LR");
-
 }
 
-void SysTick_Handler_C(void)
+void SysTick_Handler(void)
 {
-    printf("SysTick Exception!\n");
+    ++global_tick_count;
+
+    for (int i = 1; i < NUM_TASKS; ++i)
+    {
+        if (tasks[i].current_state == TASK_STATE_BLOCKED && tasks[i].block_count == global_tick_count)
+        {
+            tasks[i].current_state = TASK_STATE_READY;
+        }
+    }
+
+    //pends the PendSV
+    uint32_t *pICSR = (uint32_t *) 0xE000ED04;
+    *pICSR |= (1 << 28);
 }
 
 void HardFault_Handler(void)
@@ -229,15 +261,56 @@ void UsageFault_Handler(void)
 /**
  * Miscellaneous functions
  */
+
 void update_task(void)
 {
-    ++task_current;
-    task_current %= NUM_TASKS;
+    uint32_t blocked_task_count = 0;
+
+    do
+    {
+        ++task_current;
+        task_current %= NUM_TASKS;
+
+        if ( (task_current != 0) && (tasks[task_current].current_state == TASK_STATE_READY) )
+        {
+            break;
+        }
+        else if (tasks[task_current].current_state == TASK_STATE_BLOCKED)
+        {
+            ++blocked_task_count;
+            continue;
+        }
+        else
+        {
+            continue;
+        }
+    } while (blocked_task_count < (NUM_TASKS - 1));
+
+    if (blocked_task_count == (NUM_TASKS - 1))
+    {
+        task_current = 0;
+    }
 }
 
 void save_psp(uint32_t psp_val)
 {
     tasks[task_current].psp_value = psp_val;
+}
+
+void task_delay(uint32_t ticks)
+{
+    INTERRUPT_DISABLE();
+
+    if (task_current > 0)
+    {
+        tasks[task_current].block_count = global_tick_count + ticks;
+        tasks[task_current].current_state = TASK_STATE_BLOCKED;
+        /* pends the PendSV, since task is blocked */
+        uint32_t *pICSR = (uint32_t *) 0xE000ED04;
+        *pICSR |= (1 << 28);
+    }
+
+    INTERRUPT_ENABLE();
 }
 
 void exception_type(void)
@@ -268,4 +341,6 @@ void exception_type(void)
             break;
     }
 }
+
+
 

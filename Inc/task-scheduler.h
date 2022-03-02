@@ -13,7 +13,7 @@
 /*
  * Macros for stack memory
  */
-#define NUM_TASKS                       4
+#define NUM_TASKS                       5
 #define STACK_TASK_SIZE                 1024U   /*size of user stack is 1KB*/
 #define STACK_SCHEDULER_SIZE            1024U   /*size of scheduler stack is 1KB*/
 #define SRAM_BASE_ADDR                  0x20000000U
@@ -22,7 +22,8 @@
 #define TASK2_STACK_BASE                (TASK1_STACK_BASE - STACK_TASK_SIZE)
 #define TASK3_STACK_BASE                (TASK2_STACK_BASE - STACK_TASK_SIZE)
 #define TASK4_STACK_BASE                (TASK3_STACK_BASE - STACK_TASK_SIZE)
-#define SCHEDULER_STACK_BASE            (TASK4_STACK_BASE - STACK_TASK_SIZE)
+#define TASK_IDLE_STACK_BASE            (TASK4_STACK_BASE - STACK_TASK_SIZE)
+#define SCHEDULER_STACK_BASE            (TASK_IDLE_STACK_BASE - STACK_TASK_SIZE)
 
 #define CLK_FREQ_HZ                     16000000U
 #define SYSTICK_FREQ_HZ                 CLK_FREQ_HZ
@@ -38,7 +39,10 @@
 #define SRAM_ADDR                       0x20010000U
 
 #define TASK_STATE_BLOCKED              0
-#define TASK_STATE_RUNNING              1
+#define TASK_STATE_READY                1
+
+#define INTERRUPT_DISABLE()             do{ __asm volatile("MOV R0, #0x1"); __asm volatile("MSR PRIMASK, R0");} while (0)
+#define INTERRUPT_ENABLE()              do{ __asm volatile("MOV R0, #0x0"); __asm volatile("MSR PRIMASK, R0");} while (0)
 
 typedef struct
 {
@@ -50,7 +54,6 @@ typedef struct
 
 task_control_block_t tasks[NUM_TASKS];
 
-
 /**
  * Function Prototypes
  */
@@ -58,6 +61,7 @@ void task1_handler(void);
 void task2_handler(void);
 void task3_handler(void);
 void task4_handler(void);
+void idle_task_handler(void);
 
 void init_systick(uint32_t desired_freq_hz);
 __attribute__ ((naked)) void init_stack_scheduler(uint32_t stack_address);
@@ -68,6 +72,8 @@ void enable_sys_faults(void);
 void exception_type(void);
 void update_task(void);
 void save_psp(uint32_t psp_val);
+void task_delay(uint32_t ticks);
+void idle_task_handler(void);
 
 
 #endif /* TASK_SCHEDULER_H_ */
